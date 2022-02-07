@@ -9,8 +9,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"sync"
 
+	"github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
 )
 
@@ -37,29 +39,36 @@ func main() {
 		path         = flag.String("path", "/oauth/callback", "Callback path")
 		clientID     = flag.String("id", "", "Client ID")
 		clientSecret = flag.String("secret", "", "Client secret")
-		authURL      = flag.String("auth", "https://localhost/oauth/authorize", "Authorization URL")
-		tokenURL     = flag.String("token", "https://localhost/oauth/token", "Token URL")
+		issuerURL    = flag.String("issuer", "", "OIDC Issuer URL")
+		//authURL      = flag.String("auth", "", "Authorization URL")
+		//tokenURL     = flag.String("token", "", "Token URL")
 		scopes       Scopes
 	)
 	flag.Var(&scopes, "scope", "oAuth scopes to authorize (can be specified multiple times")
 	flag.Parse()
+
+	ctx := context.Background()
+
+	provider, err := oidc.NewProvider(ctx, *issuerURL);
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Couldn't initialize OIDC client: %v", err);
+		os.Exit(1);
+	}
 
 	config := &oauth2.Config{
 		ClientID:     *clientID,
 		ClientSecret: *clientSecret,
 		Scopes:       scopes,
 		RedirectURL:  fmt.Sprintf("http://127.0.0.1:%d%s", *port, *path),
-		Endpoint: oauth2.Endpoint{
-			AuthURL:  *authURL,
-			TokenURL: *tokenURL,
-		},
+		Endpoint: provider.Endpoint(),
 	}
+
+	verifier := provider.Verifier(&oidc.Config{ClientID: *clientID})
 
 	state := randString()
 	url := config.AuthCodeURL(state, oauth2.AccessTypeOffline)
 	fmt.Printf("Visit this URL in your browser:\n\n%s\n\n", url)
 
-	ctx := context.Background()
 	var wg sync.WaitGroup
 	wg.Add(1)
 
@@ -72,19 +81,38 @@ func main() {
 		}
 
 		code := r.URL.Query().Get("code")
-		token, err := config.Exchange(ctx, code)
+		oauthToken, err := config.Exchange(ctx, code)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Exchange error: %s", err), http.StatusServiceUnavailable)
 			return
 		}
 
-		tokenJSON, err := json.MarshalIndent(token, "", "  ")
+		oauthTokenJSON, err := json.MarshalIndent(oauthToken, "", "  ")
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Token parse error: %s", err), http.StatusServiceUnavailable)
 			return
 		}
 
-		w.Write(tokenJSON)
+		w.Write(oauthTokenJSON)
+
+		if rawIdToken, ok := oauthToken.Extra("id_token").(string); ok {
+			idToken, err := verifier.Verify(ctx, rawIdToken);
+			if err != nil {
+				http.Error(w, fmt.Sprintf("ID token verification error: %s", err), http.StatusServiceUnavailable)
+			} else {
+				var idTokenJson interface{};
+				if err := idToken.Claims(&idTokenJson); err != nil {
+					http.Error(w, fmt.Sprintf("ID token decode error: %s", err), http.StatusServiceUnavailable)
+				} else {
+					idTokenJsonIndented, err := json.MarshalIndent(idTokenJson, "", "  ")
+					if err != nil {
+						http.Error(w, fmt.Sprintf("ID token JSON output error: %s", err), http.StatusServiceUnavailable)
+						return
+					}
+					w.Write(idTokenJsonIndented);
+				}
+			}
+		}
 	})
 
 	server := http.Server{
