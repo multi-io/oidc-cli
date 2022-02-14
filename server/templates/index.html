@@ -12,7 +12,15 @@
     Logged in.
 
     <p>
-        {{.IdTokenJson}}
+
+    <h2>ID Token Attributes</h2>
+
+    <ul>
+        {{ range $key, $value := .IdTokenJson }}
+        <li><strong>{{ $key }}</strong>: {{ $value }}</li>
+        {{ end }}
+    </ul>
+
     </p>
 
     TODO logout
