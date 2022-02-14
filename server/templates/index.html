@@ -6,7 +6,19 @@
 </head>
 <body>
 
-    Hello World :)
+    <h1>OIDC Demo Client</h1>
 
+    {{if .IdToken}}
+    Logged in.
+
+    TODO logout
+
+    {{else}}
+
+    <p>Not logged in.</p>
+
+    <a href="{{.AuthCodeURL}}">Login</a>
+
+    {{end}}
 </body>
 </html>

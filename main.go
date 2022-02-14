@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
 	"flag"
 	"fmt"
 	"github.com/multi-io/oidc-cli/server"
@@ -12,16 +10,11 @@ import (
 )
 
 
-func randString() string {
-	buf := make([]byte, 32)
-	rand.Read(buf)
-	return base64.StdEncoding.EncodeToString(buf)
-}
-
 func main() {
 	var (
 		port         = flag.Int("port", 8080, "Callback port")
 		//path         = flag.String("path", "/oauth/callback", "Callback path")
+		selfURL      = flag.String("self", "http://127.0.0.1:8080", "Public base URL of this client")
 		clientID     = flag.String("id", "", "Client ID")
 		clientSecret = flag.String("secret", "", "Client secret")
 		issuerURL    = flag.String("issuer", "", "OIDC Issuer URL")
@@ -35,7 +28,7 @@ func main() {
 
 	ctx := context.Background()
 
-	server, err := server.NewServer(ctx, *port, *issuerURL, *clientID, *clientSecret, scopes)
+	server, err := server.NewServer(ctx, *port, *issuerURL, *clientID, *clientSecret, scopes, *selfURL)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Couldn't create webserver: %v", err)
 		os.Exit(1)
