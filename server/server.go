@@ -111,6 +111,9 @@ func NewServer(ctx context.Context,
 		server.handleIndex(writer, request)
 	})
 
+	fs := http.FileServer(http.Dir("server/assets/"))
+	mux.Handle("/static/", http.StripPrefix("/static/", fs))
+
 	server.serverFinishChan = make(chan error, 1)
 
 	return server, nil

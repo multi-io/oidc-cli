@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>OIDC Demo Client</title>
+    <link rel="stylesheet" href="static/styles.css">
 </head>
 <body>
 
@@ -29,12 +30,12 @@
 
     <p>Not logged in.</p>
 
-    <a href="{{.AuthCodeURL}}">Login</a>
+    <a class="login-button" href="{{.AuthCodeURL}}">Login</a>
 
     {{end}}
 
     {{if .Errors}}
-    <div>
+    <div id="errormessages">
     {{range .Errors}}
         {{.}}<br>
     {{end}}
