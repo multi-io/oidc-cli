@@ -8,8 +8,12 @@
 
     <h1>OIDC Demo Client</h1>
 
-    {{if .IdToken}}
+    {{if .IdTokenJson}}
     Logged in.
+
+    <p>
+        {{.IdTokenJson}}
+    </p>
 
     TODO logout
 
@@ -19,6 +23,14 @@
 
     <a href="{{.AuthCodeURL}}">Login</a>
 
+    {{end}}
+
+    {{if .Errors}}
+    <div>
+    {{range .Errors}}
+        {{.}}<br>
+    {{end}}
+    </div>
     {{end}}
 </body>
 </html>

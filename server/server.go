@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/gob"
 	"fmt"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gorilla/sessions"
@@ -32,7 +33,7 @@ type Server struct {
 	SelfURL      string
 
 	httpServer       *http.Server
-	cookieStore      *sessions.CookieStore
+	cookieStore      sessions.Store
 	serverFinishChan chan error
 	serverFinishErr  error
 	provider         *oidc.Provider
@@ -42,15 +43,20 @@ type Server struct {
 	indexTemplate *template.Template
 }
 
-const SESSIONCOOKIE = "sessid"
-const SESS_IDTOKEN = "idtoken"
+const SESS_IDTOKENCLAIMS = "idtokenclaims"
+const SESS_STATE = "state"
 
 type TemplateData struct {
 	Request     *http.Request
 	Writer      http.ResponseWriter
 	Server      *Server
-	IdToken     *oidc.IDToken
+	IdTokenJson interface{}
 	AuthCodeURL string
+	Errors      []string
+}
+
+func (data *TemplateData) error(msg string) {
+	data.Errors = append(data.Errors, msg)
 }
 
 func NewServer(ctx context.Context,
@@ -92,7 +98,12 @@ func NewServer(ctx context.Context,
 		Handler: mux,
 	}
 
+	//gob.Register(oidc.IDToken{})
+	gob.Register(make(map[string]interface{}))
+
+	// TODO for prod: key from environment, not hardcoded; list of keys for rotation
 	server.cookieStore = sessions.NewCookieStore([]byte("super-secret-key"))
+	//server.cookieStore = sessions.NewFilesystemStore("/tmp/cookies", []byte("super-secret-key"))
 
 	server.indexTemplate = template.Must(template.ParseFiles("server/templates/index.html"))
 
@@ -133,7 +144,12 @@ func randString() string {
 }
 
 func (server *Server) handleIndex(writer http.ResponseWriter, request *http.Request) {
-	session, err := server.cookieStore.Get(request, SESSIONCOOKIE)
+	if request.URL.Path != "/" {
+		http.Error(writer, fmt.Sprintf("Path not found: %s", request.URL.Path), http.StatusNotFound)
+		return
+	}
+
+	session, err := server.cookieStore.Get(request, "mysession")
 	if err != nil {
 		http.Error(writer, fmt.Sprintf("Session decode error: %s", err), http.StatusInternalServerError)
 		return
@@ -145,12 +161,52 @@ func (server *Server) handleIndex(writer http.ResponseWriter, request *http.Requ
 		Server:  server,
 	}
 
-	if idToken, ok := session.Values[SESS_IDTOKEN].(*oidc.IDToken); ok && idToken != nil {
+	reqState := request.URL.Query().Get("state")
+	reqCode := request.URL.Query().Get("code")
+
+	ctx := request.Context()
+
+	if reqState != "" && reqCode != "" {
+		// looks like we were called back by the auth server. Perform token exchange
+
+		if reqState != session.Values[SESS_STATE] {
+			data.error("callback error: invalid state")
+		} else {
+
+			oauthToken, err := server.config.Exchange(ctx, reqCode)
+			if err != nil {
+				data.error(fmt.Sprintf("Exchange error: %s", err))
+			} else if rawIdToken, ok := oauthToken.Extra("id_token").(string); ok {
+				idToken, err := server.tokenVerifier.Verify(ctx, rawIdToken)
+				if err != nil {
+					data.error(fmt.Sprintf("ID token verification error: %s", err))
+				} else {
+					var claims interface{}
+					if err := idToken.Claims(&claims); err != nil {
+						data.error(fmt.Sprintf("ID token decode error: %s", err))
+					} else {
+						session.Values[SESS_IDTOKENCLAIMS] = claims
+						if err := session.Save(request, writer); err != nil {
+							data.error(fmt.Sprintf("session save error: %s", err))
+						}
+						// TODO maybe redirect to self here to get rid of the request parameters in the URL bar
+					}
+				}
+			}
+		}
+	}
+
+	if idTokenClaims, ok := session.Values[SESS_IDTOKENCLAIMS].(interface{}); ok {
 		// logged in
-		data.IdToken = idToken
+		data.IdTokenJson = idTokenClaims
+
 	} else {
 		// not logged in
 		state := randString()
+		session.Values[SESS_STATE] = state
+		if err := session.Save(request, writer); err != nil {
+			data.error(fmt.Sprintf("session save error: %s", err))
+		}
 		data.AuthCodeURL = server.config.AuthCodeURL(state, oauth2.AccessTypeOffline)
 	}
 
