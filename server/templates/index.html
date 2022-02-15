@@ -9,7 +9,7 @@
 
     <h1>OIDC Demo Client</h1>
 
-    {{if .IdTokenJson}}
+    {{- if .IdTokenJson}}
     Logged in.
 
     <p>
@@ -17,29 +17,29 @@
     <h2>ID Token Attributes</h2>
 
     <ul>
-        {{ range $key, $value := .IdTokenJson }}
+        {{- range $key, $value := .IdTokenJson }}
         <li><strong>{{ $key }}</strong>: {{ $value }}</li>
-        {{ end }}
+        {{- end }}
     </ul>
 
     </p>
 
-    TODO logout
+    <a class="button logout" href="logout">Logout</a>
 
-    {{else}}
+    {{- else}}
 
     <p>Not logged in.</p>
 
-    <a class="login-button" href="{{.AuthCodeURL}}">Login</a>
+    <a class="button login" href="{{.AuthCodeURL}}">Login</a>
 
-    {{end}}
+    {{- end}}
 
-    {{if .Errors}}
+    {{- if .Errors}}
     <div id="errormessages">
-    {{range .Errors}}
+        {{- range .Errors}}
         {{.}}<br>
-    {{end}}
+        {{- end}}
     </div>
-    {{end}}
+    {{- end}}
 </body>
 </html>

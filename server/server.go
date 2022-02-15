@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/base64"
@@ -11,6 +12,8 @@ import (
 	"golang.org/x/oauth2"
 	"html/template"
 	"net/http"
+	"net/url"
+	"strings"
 )
 
 type Scopes []string
@@ -32,18 +35,20 @@ type Server struct {
 	Scopes       Scopes
 	SelfURL      string
 
-	httpServer       *http.Server
-	cookieStore      sessions.Store
-	serverFinishChan chan error
-	serverFinishErr  error
-	provider         *oidc.Provider
-	config           *oauth2.Config
-	tokenVerifier    *oidc.IDTokenVerifier
+	httpServer         *http.Server
+	cookieStore        sessions.Store
+	serverFinishChan   chan error
+	serverFinishErr    error
+	provider           *oidc.Provider
+	endSessionEndpoint string
+	config             *oauth2.Config
+	tokenVerifier      *oidc.IDTokenVerifier
 
 	indexTemplate *template.Template
 }
 
 const SESS_IDTOKENCLAIMS = "idtokenclaims"
+const SESS_RAWIDTOKEN = "idtoken"
 const SESS_STATE = "state"
 
 type TemplateData struct {
@@ -82,6 +87,15 @@ func NewServer(ctx context.Context,
 		return nil, fmt.Errorf("Couldn't initialize OIDC client: %v", err)
 	}
 
+	var claims struct {
+		EndSessionEndpoint string `json:"end_session_endpoint"`
+	}
+
+	if err := server.provider.Claims(&claims); err != nil {
+		return nil, fmt.Errorf("Unexpected disco doc decoding error: %v", err)
+	}
+	server.endSessionEndpoint = claims.EndSessionEndpoint
+
 	server.config = &oauth2.Config{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
@@ -109,6 +123,9 @@ func NewServer(ctx context.Context,
 
 	mux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
 		server.handleIndex(writer, request)
+	})
+	mux.HandleFunc("/logout", func(writer http.ResponseWriter, request *http.Request) {
+		server.handleLogout(writer, request)
 	})
 
 	fs := http.FileServer(http.Dir("server/assets/"))
@@ -188,6 +205,7 @@ func (server *Server) handleIndex(writer http.ResponseWriter, request *http.Requ
 					if err := idToken.Claims(&claims); err != nil {
 						data.error(fmt.Sprintf("ID token decode error: %s", err))
 					} else {
+						session.Values[SESS_RAWIDTOKEN] = rawIdToken
 						session.Values[SESS_IDTOKENCLAIMS] = claims
 						if err := session.Save(request, writer); err != nil {
 							data.error(fmt.Sprintf("session save error: %s", err))
@@ -221,4 +239,45 @@ func (server *Server) handleIndex(writer http.ResponseWriter, request *http.Requ
 	if err := server.indexTemplate.Execute(writer, data); err != nil {
 		http.Error(writer, fmt.Sprintf("Template rendering error: %s", err), http.StatusInternalServerError)
 	}
+}
+
+func (server *Server) handleLogout(writer http.ResponseWriter, request *http.Request) {
+	session, err := server.cookieStore.Get(request, "oidc-cli-session")
+	if err != nil {
+		// TODO log error
+		http.Redirect(writer, request, server.SelfURL, http.StatusFound)
+		return
+	}
+
+	// logout locally
+	// no good API to delete the whole session (cookie)
+	delete(session.Values, SESS_STATE)
+	delete(session.Values, SESS_RAWIDTOKEN)
+	delete(session.Values, SESS_IDTOKENCLAIMS)
+	if err := session.Save(request, writer); err != nil {
+		// TODO log error
+	}
+
+	// logout at the OP
+	// RP-initiated logout, https://openid.net/specs/openid-connect-rpinitiated-1_0.html
+	logoutURL := logoutURL(server, session)
+	http.Redirect(writer, request, logoutURL, http.StatusFound)
+}
+
+func logoutURL(server *Server, session *sessions.Session) string {
+	var buf bytes.Buffer
+	buf.WriteString(server.endSessionEndpoint)
+	v := url.Values{
+		"post_logout_redirect_uri": {server.SelfURL + "/"},
+	}
+	if idt, ok := session.Values[SESS_RAWIDTOKEN].(string); ok {
+		v.Set("id_token_hint", idt)
+	}
+	if strings.Contains(server.endSessionEndpoint, "?") {
+		buf.WriteByte('&')
+	} else {
+		buf.WriteByte('?')
+	}
+	buf.WriteString(v.Encode())
+	return buf.String()
 }
