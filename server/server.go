@@ -164,6 +164,10 @@ func randString() string {
 }
 
 func (server *Server) handleIndex(writer http.ResponseWriter, request *http.Request) {
+	writer.Header().Add("Cache-Control", "no-cache, no-store, must-revalidate")
+	writer.Header().Add("Pragma", "no-cache")
+	writer.Header().Add("Expires", "0")
+
 	if request.URL.Path != "/" {
 		http.Error(writer, fmt.Sprintf("Path not found: %s", request.URL.Path), http.StatusNotFound)
 		return
