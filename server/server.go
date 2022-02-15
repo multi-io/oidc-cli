@@ -152,7 +152,7 @@ func (server *Server) handleIndex(writer http.ResponseWriter, request *http.Requ
 		return
 	}
 
-	session, err := server.cookieStore.Get(request, "mysession")
+	session, err := server.cookieStore.Get(request, "oidc-cli-session")
 	if err != nil {
 		http.Error(writer, fmt.Sprintf("Session decode error: %s", err), http.StatusInternalServerError)
 		return
@@ -192,7 +192,12 @@ func (server *Server) handleIndex(writer http.ResponseWriter, request *http.Requ
 						if err := session.Save(request, writer); err != nil {
 							data.error(fmt.Sprintf("session save error: %s", err))
 						}
-						// TODO maybe redirect to self here to get rid of the request parameters in the URL bar
+
+						// login succeeded. Redirect to entry page. This gets rid of
+						// request parameters in the URL bar and is also the right thing to do in a real web app
+						// where the callback endpoint is separate from the business endpoints of the app
+						http.Redirect(writer, request, server.SelfURL, http.StatusFound)
+						return
 					}
 				}
 			}
