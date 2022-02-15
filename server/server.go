@@ -100,7 +100,7 @@ func NewServer(ctx context.Context,
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
 		Scopes:       scopes,
-		RedirectURL:  fmt.Sprintf("%s/", selfURL),
+		RedirectURL:  fmt.Sprintf("%s", selfURL),
 		Endpoint:     server.provider.Endpoint(),
 	}
 
@@ -268,7 +268,7 @@ func logoutURL(server *Server, session *sessions.Session) string {
 	var buf bytes.Buffer
 	buf.WriteString(server.endSessionEndpoint)
 	v := url.Values{
-		"post_logout_redirect_uri": {server.SelfURL + "/"},
+		"post_logout_redirect_uri": {server.SelfURL},
 	}
 	if idt, ok := session.Values[SESS_RAWIDTOKEN].(string); ok {
 		v.Set("id_token_hint", idt)
