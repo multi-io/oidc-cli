@@ -249,6 +249,8 @@ func (server *Server) handleLogout(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
+	idToken, _ := session.Values[SESS_RAWIDTOKEN].(string)
+
 	// logout locally
 	// no good API to delete the whole session (cookie)
 	delete(session.Values, SESS_STATE)
@@ -260,19 +262,19 @@ func (server *Server) handleLogout(writer http.ResponseWriter, request *http.Req
 
 	// logout at the OP
 	// RP-initiated logout, https://openid.net/specs/openid-connect-rpinitiated-1_0.html
-	logoutURL := logoutURL(server, session)
+	logoutURL := logoutURL(server, idToken)
 	http.Redirect(writer, request, logoutURL, http.StatusFound)
 }
 
-func logoutURL(server *Server, session *sessions.Session) string {
+func logoutURL(server *Server, idToken string) string {
 	var buf bytes.Buffer
 	buf.WriteString(server.endSessionEndpoint)
 	v := url.Values{
 		"post_logout_redirect_uri": {server.SelfURL},
 		"client_id":                {server.ClientID},
 	}
-	if idt, ok := session.Values[SESS_RAWIDTOKEN].(string); ok {
-		v.Set("id_token_hint", idt)
+	if idToken != "" {
+		v.Set("id_token_hint", idToken)
 	}
 	if strings.Contains(server.endSessionEndpoint, "?") {
 		buf.WriteByte('&')
