@@ -269,6 +269,7 @@ func logoutURL(server *Server, session *sessions.Session) string {
 	buf.WriteString(server.endSessionEndpoint)
 	v := url.Values{
 		"post_logout_redirect_uri": {server.SelfURL},
+		"client_id":                {server.ClientID},
 	}
 	if idt, ok := session.Values[SESS_RAWIDTOKEN].(string); ok {
 		v.Set("id_token_hint", idt)
