@@ -24,7 +24,9 @@
 
     </p>
 
-    <a class="button logout" href="logout">Logout</a>
+    <a class="button logout" href="logout">
+        Logout {{ if not .Server.EndSessionEndpoint }}<small>(client only)</small>{{ end }}
+    </a>
 
     {{- else}}
 

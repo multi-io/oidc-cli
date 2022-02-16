@@ -28,21 +28,21 @@ func (s *Scopes) Set(value string) error {
 }
 
 type Server struct {
-	Port         int
-	IssuerURL    string
-	ClientID     string
-	ClientSecret string
-	Scopes       Scopes
-	SelfURL      string
+	Port               int
+	IssuerURL          string
+	ClientID           string
+	ClientSecret       string
+	Scopes             Scopes
+	SelfURL            string
+	EndSessionEndpoint string
 
-	httpServer         *http.Server
-	cookieStore        sessions.Store
-	serverFinishChan   chan error
-	serverFinishErr    error
-	provider           *oidc.Provider
-	endSessionEndpoint string
-	config             *oauth2.Config
-	tokenVerifier      *oidc.IDTokenVerifier
+	httpServer       *http.Server
+	cookieStore      sessions.Store
+	serverFinishChan chan error
+	serverFinishErr  error
+	provider         *oidc.Provider
+	config           *oauth2.Config
+	tokenVerifier    *oidc.IDTokenVerifier
 
 	indexTemplate *template.Template
 }
@@ -94,7 +94,7 @@ func NewServer(ctx context.Context,
 	if err := server.provider.Claims(&claims); err != nil {
 		return nil, fmt.Errorf("Unexpected disco doc decoding error: %v", err)
 	}
-	server.endSessionEndpoint = claims.EndSessionEndpoint
+	server.EndSessionEndpoint = claims.EndSessionEndpoint
 
 	server.config = &oauth2.Config{
 		ClientID:     clientID,
@@ -264,16 +264,22 @@ func (server *Server) handleLogout(writer http.ResponseWriter, request *http.Req
 		// TODO log error
 	}
 
-	// logout at the OP
-	// RP-initiated logout, https://openid.net/specs/openid-connect-rpinitiated-1_0.html
-	// do not use id_token_hint her as that would expose the ID token to the browser
-	logoutURL := logoutURL(server, "")
-	http.Redirect(writer, request, logoutURL, http.StatusFound)
+	if server.EndSessionEndpoint != "" {
+		// logout at the OP
+		// RP-initiated logout, https://openid.net/specs/openid-connect-rpinitiated-1_0.html
+		// do not use id_token_hint her as that would expose the ID token to the browser
+		logoutURL := logoutURL(server, "")
+		http.Redirect(writer, request, logoutURL, http.StatusFound)
+	} else {
+		// OP doesn't specify an end session endpoint (which means it doesn't support RP-initiated logout)
+		// Can only log out locally (which we did above). Redirect back to app.
+		http.Redirect(writer, request, server.SelfURL, http.StatusFound)
+	}
 }
 
 func logoutURL(server *Server, idToken string) string {
 	var buf bytes.Buffer
-	buf.WriteString(server.endSessionEndpoint)
+	buf.WriteString(server.EndSessionEndpoint)
 	v := url.Values{
 		"post_logout_redirect_uri": {server.SelfURL},
 		"client_id":                {server.ClientID},
@@ -281,7 +287,7 @@ func logoutURL(server *Server, idToken string) string {
 	if idToken != "" {
 		v.Set("id_token_hint", idToken)
 	}
-	if strings.Contains(server.endSessionEndpoint, "?") {
+	if strings.Contains(server.EndSessionEndpoint, "?") {
 		buf.WriteByte('&')
 	} else {
 		buf.WriteByte('?')
