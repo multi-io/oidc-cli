@@ -1,0 +1,8 @@
+namespace: APPNAME
+commonLabels:
+  app: APPNAME
+
+resources:
+  - kubedeploy/deployment.yaml
+  - kubedeploy/ingress.yaml
+  - kubedeploy/service.yaml

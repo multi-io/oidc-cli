@@ -1,2 +1,4 @@
 oidc-cli
 /.idea/
+/docker-build
+/docker-push

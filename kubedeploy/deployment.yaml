@@ -1,0 +1,30 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: APPNAME
+spec:
+  replicas: 2
+  template:
+    spec:
+      containers:
+      - name: main
+        image: oklischat/APPNAME:GITTAG
+        ports:
+        - name: http-port
+          containerPort: 8080
+        command:
+          - /usr/local/bin/oidc-cli
+          - -issuer
+          - https://myissuer.com
+          - -id
+          - some_client_id
+          - -secret
+          - some_client_secret_123
+          - -self
+          - https://oidc-demo.scratch.io-multi.de
+          - -scope
+          - openid
+          - -scope
+          - email
+          - -scope
+          - profile
