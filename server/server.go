@@ -213,13 +213,13 @@ func (server *Server) handleIndex(writer http.ResponseWriter, request *http.Requ
 						session.Values[SESS_IDTOKENCLAIMS] = claims
 						if err := session.Save(request, writer); err != nil {
 							data.error(fmt.Sprintf("session save error: %s", err))
+						} else {
+							// login succeeded. Redirect to entry page. This gets rid of
+							// request parameters in the URL bar and is also the right thing to do in a real web app
+							// where the callback endpoint is separate from the business endpoints of the app
+							http.Redirect(writer, request, server.SelfURL, http.StatusFound)
+							return
 						}
-
-						// login succeeded. Redirect to entry page. This gets rid of
-						// request parameters in the URL bar and is also the right thing to do in a real web app
-						// where the callback endpoint is separate from the business endpoints of the app
-						http.Redirect(writer, request, server.SelfURL, http.StatusFound)
-						return
 					}
 				}
 			}
