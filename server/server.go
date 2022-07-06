@@ -185,6 +185,10 @@ func (server *Server) handleIndex(writer http.ResponseWriter, request *http.Requ
 		Server:  server,
 	}
 
+	if request.URL.Query().Get("error") != "" {
+		data.error(fmt.Sprintf("Error: %s (%s)", request.URL.Query().Get("error"), request.URL.Query().Get("error_description")))
+	}
+
 	reqState := request.URL.Query().Get("state")
 	reqCode := request.URL.Query().Get("code")
 
