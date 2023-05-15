@@ -2,3 +2,4 @@ oidc-cli
 /.idea/
 /docker-build
 /docker-push
+/sessionstore/session_*

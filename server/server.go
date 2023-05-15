@@ -37,7 +37,7 @@ type Server struct {
 	EndSessionEndpoint string
 
 	httpServer       *http.Server
-	cookieStore      sessions.Store
+	sessionStore     sessions.Store
 	serverFinishChan chan error
 	serverFinishErr  error
 	provider         *oidc.Provider
@@ -116,8 +116,9 @@ func NewServer(ctx context.Context,
 	gob.Register(make(map[string]interface{}))
 
 	// TODO for prod: key from environment, not hardcoded; list of keys for rotation
-	server.cookieStore = sessions.NewCookieStore([]byte("super-secret-key"))
-	//server.cookieStore = sessions.NewFilesystemStore("/tmp/cookies", []byte("super-secret-key"))
+	fss := sessions.NewFilesystemStore("./sessionstore", []byte("super-secret-key"))
+	fss.MaxLength(0)
+	server.sessionStore = fss
 
 	server.indexTemplate = template.Must(template.ParseFiles("server/templates/index.html"))
 
@@ -173,7 +174,7 @@ func (server *Server) handleIndex(writer http.ResponseWriter, request *http.Requ
 		return
 	}
 
-	session, err := server.cookieStore.Get(request, "oidc-cli-session")
+	session, err := server.sessionStore.Get(request, "oidc-cli-session")
 	if err != nil {
 		http.Error(writer, fmt.Sprintf("Session decode error: %s", err), http.StatusInternalServerError)
 		return
@@ -250,7 +251,7 @@ func (server *Server) handleIndex(writer http.ResponseWriter, request *http.Requ
 }
 
 func (server *Server) handleLogout(writer http.ResponseWriter, request *http.Request) {
-	session, err := server.cookieStore.Get(request, "oidc-cli-session")
+	session, err := server.sessionStore.Get(request, "oidc-cli-session")
 	if err != nil {
 		// TODO log error
 		http.Redirect(writer, request, server.SelfURL, http.StatusFound)
