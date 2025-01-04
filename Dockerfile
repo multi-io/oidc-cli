@@ -1,4 +1,4 @@
-ARG GO_VERSION=1.16.6
+ARG GO_VERSION=1.23.4
 FROM golang:${GO_VERSION} AS builder
 WORKDIR /go/src/github.com/multi-io/oidc-cli
 COPY . .
