@@ -6,7 +6,7 @@ image:
   repository: oklischat/oidc-cli
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "2ae7233"
+  tag: "dac04a4"
 
 imagePullSecrets: []
 nameOverride: ""
