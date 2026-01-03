@@ -1,7 +1,7 @@
 .PHONY: build test namespace deploy
 
 APPNAME=oidc-cli
-GITTAG=$(shell git describe --tags --always)
+GITTAG=$(shell git describe --tags --always $$(git log --format=format:%H -1 -- server *.go))  # latest commit that changed anything in server/ *.go
 
 build:
 	CGO_ENABLED=0 go build
