@@ -7,13 +7,14 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 	"fmt"
-	"github.com/coreos/go-oidc/v3/oidc"
-	"github.com/gorilla/sessions"
-	"golang.org/x/oauth2"
 	"html/template"
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/gorilla/sessions"
+	"golang.org/x/oauth2"
 )
 
 type Scopes []string
@@ -127,6 +128,9 @@ func NewServer(ctx context.Context,
 	})
 	mux.HandleFunc("/logout", func(writer http.ResponseWriter, request *http.Request) {
 		server.handleLogout(writer, request)
+	})
+	mux.HandleFunc("/health", func(writer http.ResponseWriter, request *http.Request) {
+		writer.WriteHeader(http.StatusOK)
 	})
 
 	fs := http.FileServer(http.Dir("server/assets/"))
